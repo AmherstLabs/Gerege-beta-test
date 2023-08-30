@@ -1,0 +1,78 @@
+name: Benchmark PR (iai)
+
+on:
+  pull_request:
+    branches: [ '**' ]
+
+jobs:
+  fetch-iai-results:
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Initialize IAI cache for ${{ github.event.pull_request.base.sha }}
+      uses: actions/cache@v3
+      id: cache-iai-results
+      with:
+        path: |
+          */target/iai/iai_benchmark/
+        key: ${{ runner.os }}-iai-benchmark-cache-${{ github.event.pull_request.base.sha }}
+        lookup-only: true
+
+    - name: Install Rust
+      if: ${{ steps.cache-iai-results.outputs.cache-hit != 'true' }}
+      uses: dtolnay/rust-toolchain@1.70.0
+    - name: Set up cargo cache
+      if: ${{ steps.cache-iai-results.outputs.cache-hit != 'true' }}
+      uses: Swatinem/rust-cache@v2
+    - name: Python3 Build
+      if: ${{ steps.cache-iai-results.outputs.cache-hit != 'true' }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    - name: Checkout
+      if: ${{ steps.cache-iai-results.outputs.cache-hit != 'true' }}
+      uses: actions/checkout@v3
+      with:
+        ref: ${{ github.event.pull_request.base.sha }}
+    - name: Install test dependencies
+      if: ${{ steps.cache-iai-results.outputs.cache-hit != 'true' }}
+      run: |
+        pip install -r requirements.txt
+        sudo apt update
+        sudo apt install -y valgrind
+        cargo install --version 0.3.1 iai-callgrind-runner
+
+    - name: Run iai benchmarks
+      if: ${{ steps.cache-iai-results.outputs.cache-hit != 'true' }}
+      run: make iai-benchmark-action
+
+  run-iai-benchmark:
+    needs: fetch-iai-results
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@1.70.0
+    - name: Set up cargo cache
+      uses: Swatinem/rust-cache@v2
+    - name: Python3 Build
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    - name: Checkout
+      uses: actions/checkout@v3
+    - name: Install test dependencies
+      run: |
+        pip install -r requirements.txt
+        sudo apt update
+        sudo apt install -y valgrind
+        cargo install --version 0.3.1 iai-callgrind-runner
+
+    - name: Restore cache for ${{ github.event.pull_request.base.sha }}
+      uses: actions/cache/restore@v3
+      with:
+        path: |
+          */target/iai/iai_benchmark/
+        key: ${{ runner.os }}-iai-benchmark-cache-${{ github.event.pull_request.base.sha }}
+        fail-on-cache-miss: true
+
+    - name: Run iai benchmarks
+      run: make iai-benchmark-action

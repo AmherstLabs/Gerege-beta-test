@@ -1,0 +1,36 @@
+name: iai Benchmark
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  cache-iai-results:
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@1.70.0
+    - name: Set up cargo cache
+      uses: Swatinem/rust-cache@v2
+    - name: Python3 Build
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    - name: Checkout
+      uses: actions/checkout@v3
+    - name: Install test dependencies
+      run: |
+        pip install -r requirements.txt
+        sudo apt update
+        sudo apt install -y valgrind
+        cargo install --version 0.3.1 iai-callgrind-runner
+
+    - name: Run iai benchmarks
+      run: make iai-benchmark-action
+
+    - name: Save cache for ${{ github.sha }}
+      uses: actions/cache/save@v3
+      with:
+        path: |
+          */target/iai/iai_benchmark/
+        key: ${{ runner.os }}-iai-benchmark-cache-${{ github.sha }}
